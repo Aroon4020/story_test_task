@@ -3,10 +3,11 @@ pragma solidity ^0.8.26;
 
 import {VRFConsumerBaseV2Plus} from "@chainlink/contracts/src/v0.8/vrf/dev/VRFConsumerBaseV2Plus.sol";
 import {VRFV2PlusClient} from "@chainlink/contracts/src/v0.8/vrf/dev/libraries/VRFV2PlusClient.sol";
-// Remove OpenZeppelin's Ownable to avoid conflicts
-import "../strategies/interfaces/IRevealStrategy.sol";
+import "./interfaces/IRevealStrategy.sol";
 import "./SPNFT.sol";
 import "./interfaces/IRevealModule.sol";
+import "./helpers/Errors.sol";
+import "./helpers/Events.sol";
 
 // Avoid dual ownership by only using VRFConsumerBaseV2Plus's ownership model
 contract RevealModule is VRFConsumerBaseV2Plus, IRevealModule {
@@ -17,27 +18,22 @@ contract RevealModule is VRFConsumerBaseV2Plus, IRevealModule {
     mapping(uint256 => IRevealStrategy) private revealStrategiesMapping;
     
     // Existing mappings
-    mapping(uint256 => uint256) public override tokenToStrategyId;
-    mapping(bytes32 => uint256) public override requestIdToTokenId;
+    mapping(uint256 => uint256) public  tokenToStrategyId;
+    mapping(uint256 => uint256) public  requestIdToTokenId;
 
     // Chainlink VRF V2 parameters
-    bytes32 public override keyHash;
-    uint64 public override subscriptionId;
-    uint16 public override requestConfirmations;
-    uint32 public override callbackGasLimit;
-    uint32 public override numWords;
+    bytes32 public  keyHash;
+    uint64 public  subscriptionId;
+    uint16 public  requestConfirmations;
+    uint32 public  callbackGasLimit;
+    uint32 public  numWords;
     
     // Default strategy ID
-    uint256 public override defaultStrategyId;
-    
-    // Mapping from VRF request ID to tokenId
-    mapping(uint256 => uint256) public requestIdToTokenIdV2;
-
-    // Removed duplicate events since they're defined in the interface
+    uint256 public  defaultStrategyId;
 
     // Fix constructor to not pass msg.sender to Ownable
     constructor(
-        address _spNFT,
+        address payable _spNFT,  
         address _vrfCoordinator,
         uint64 _subscriptionId,
         bytes32 _keyHash,
@@ -58,29 +54,35 @@ contract RevealModule is VRFConsumerBaseV2Plus, IRevealModule {
     }
 
     // Interface implementations for public getters
-    function spNFT() external view override returns (address) {
+    function spNFT() external view  returns (address) {
         return address(spNftInstance);
     }
     
-    function revealStrategies(uint256 strategyId) external view override returns (address) {
+    function revealStrategies(uint256 strategyId) external view  returns (address) {
         return address(revealStrategiesMapping[strategyId]);
     }
 
     /// @notice Operator adds or updates a reveal strategy.
     function setRevealStrategy(uint256 strategyId, address strategyAddress) external override onlyOwner {
+        if (strategyAddress == address(0)) revert Errors.ZeroAddress();
         revealStrategiesMapping[strategyId] = IRevealStrategy(strategyAddress);
+        emit Events.RevealStrategySet(strategyId, strategyAddress);
     }
 
     /// @notice Operator sets the reveal strategy for a particular token.
     function setTokenStrategy(uint256 tokenId, uint256 strategyId) external override onlyOwner {
-        require(address(revealStrategiesMapping[strategyId]) != address(0), "Strategy not set");
+        if (address(revealStrategiesMapping[strategyId]) == address(0)) 
+            revert Errors.StrategyNotSet(strategyId);
         tokenToStrategyId[tokenId] = strategyId;
+        emit Events.TokenStrategySet(tokenId, strategyId);
     }
 
     /// @notice Operator updates the default strategy.
     function setDefaultStrategy(uint256 newDefaultStrategyId) external override onlyOwner {
-        require(address(revealStrategiesMapping[newDefaultStrategyId]) != address(0), "Strategy not set");
+        if (address(revealStrategiesMapping[newDefaultStrategyId]) == address(0)) 
+            revert Errors.StrategyNotSet(newDefaultStrategyId);
         defaultStrategyId = newDefaultStrategyId;
+        emit Events.DefaultStrategySet(newDefaultStrategyId);
     }
 
     /// @notice Operator triggers a reveal for a specific token.
@@ -101,7 +103,7 @@ contract RevealModule is VRFConsumerBaseV2Plus, IRevealModule {
             })
         );
         
-        requestIdToTokenIdV2[requestId] = tokenId;
+        requestIdToTokenId[requestId] = tokenId;
         emit RandomWordsRequestSent(requestId, tokenId);
     }
     
@@ -110,18 +112,18 @@ contract RevealModule is VRFConsumerBaseV2Plus, IRevealModule {
         uint256 requestId,
         uint256[] calldata randomWords
     ) internal override {
-        uint256 tokenId = requestIdToTokenIdV2[requestId];
+        uint256 tokenId = requestIdToTokenId[requestId];
         // Determine which strategy to use; fallback to default if none is set
         uint256 strategyId = tokenToStrategyId[tokenId];
         if (strategyId == 0) {
             strategyId = defaultStrategyId;
         }
         IRevealStrategy strategy = revealStrategiesMapping[strategyId];
-        require(address(strategy) != address(0), "Reveal strategy not set");
+        if (address(strategy) == address(0)) revert Errors.StrategyNotSet(strategyId);
         
         // Use the first random word for the reveal
         bool success = strategy.reveal(tokenId, randomWords[0]);
-        require(success, "Reveal strategy execution failed");
+        if (!success) revert Errors.RevealFailed(tokenId);
         
         emit RevealSuccessful(tokenId, randomWords[0]);
     }
@@ -139,5 +141,6 @@ contract RevealModule is VRFConsumerBaseV2Plus, IRevealModule {
         requestConfirmations = _requestConfirmations;
         callbackGasLimit = _callbackGasLimit;
         numWords = _numWords;
+        emit Events.VRFParametersUpdated(_keyHash, _subscriptionId, _requestConfirmations, _callbackGasLimit, _numWords);
     }
 }

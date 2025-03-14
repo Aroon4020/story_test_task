@@ -4,7 +4,9 @@ pragma solidity ^0.8.26;
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "./interfaces/IStakingContract.sol";
+import "../interfaces/IStakingContract.sol";
+import "../helpers/Errors.sol";
+import "../helpers/Events.sol";
 
 contract StakingContract is Ownable, IStakingContract {
     IERC721 public revealedNFT;
@@ -24,18 +26,16 @@ contract StakingContract is Ownable, IStakingContract {
     // Mapping from tokenId to stake info.
     mapping(uint256 => StakeInfo) public stakes;
 
-    event Staked(address indexed owner, uint256 tokenId, uint256 timestamp);
-    event Unstaked(address indexed owner, uint256 tokenId, uint256 timestamp);
-    event RewardClaimed(address indexed owner, uint256 tokenId, uint256 reward);
+    // Remove local event declarations and use Events library instead
 
-    constructor(address _revealedNFT, address _rewardToken) Ownable(msg.sender) {
+    constructor(address _revealedNFT, address _rewardToken, address _owner) Ownable(_owner) {
         revealedNFT = IERC721(_revealedNFT);
         rewardToken = ERC20(_rewardToken);
     }
 
     /// @notice Stake a revealed NFT.
     function stake(uint256 tokenId) external override {
-        require(revealedNFT.ownerOf(tokenId) == msg.sender, "Not token owner");
+        if (revealedNFT.ownerOf(tokenId) != msg.sender) revert Errors.NotTokenOwner(msg.sender, tokenId);
         // Transfer NFT to this contract.
         revealedNFT.transferFrom(msg.sender, address(this), tokenId);
         stakes[tokenId] = StakeInfo({
@@ -44,28 +44,28 @@ contract StakingContract is Ownable, IStakingContract {
             stakedAt: block.timestamp,
             staked: true
         });
-        emit Staked(msg.sender, tokenId, block.timestamp);
+        emit Events.Staked(msg.sender, tokenId, block.timestamp);
     }
 
     /// @notice Unstake and claim rewards.
     function unstake(uint256 tokenId) external override {
         StakeInfo storage stakeInfo = stakes[tokenId];
-        require(stakeInfo.staked, "Not staked");
-        require(stakeInfo.owner == msg.sender, "Not token owner");
+        if (!stakeInfo.staked) revert Errors.NotStaked(tokenId);
+        if (stakeInfo.owner != msg.sender) revert Errors.NotTokenOwner(msg.sender, tokenId);
         uint256 reward = calculateReward(tokenId);
         if (reward > 0) {
             rewardToken.transfer(msg.sender, reward);
-            emit RewardClaimed(msg.sender, tokenId, reward);
+            emit Events.RewardClaimed(msg.sender, tokenId, reward);
         }
         stakeInfo.staked = false;
         revealedNFT.transferFrom(address(this), msg.sender, tokenId);
-        emit Unstaked(msg.sender, tokenId, block.timestamp);
+        emit Events.Unstaked(msg.sender, tokenId, block.timestamp);
     }
 
     /// @notice Calculates accrued reward based on staking duration.
     function calculateReward(uint256 tokenId) public view override returns (uint256) {
         StakeInfo storage stakeInfo = stakes[tokenId];
-        require(stakeInfo.staked, "Not staked");
+        if (!stakeInfo.staked) revert Errors.NotStaked(tokenId);
         uint256 stakingDuration = block.timestamp - stakeInfo.stakedAt;
         // For simplicity, assume a base reward of 1e18 tokens per year per NFT.
         uint256 baseReward = 1e18;
