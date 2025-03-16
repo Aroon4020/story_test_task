@@ -15,6 +15,4 @@ interface ISPNFT {
     function setTokenRevealed(uint256 tokenId, string memory metadata) external;
     function burn(uint256 tokenId) external returns (address);
     function getTokenOwner(uint256 tokenId) external view returns (address);
-    
-    event MintPriceUpdated(uint256 newPrice); // New event
 }

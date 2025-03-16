@@ -2,12 +2,13 @@
 pragma solidity ^0.8.26;
 
 interface IRevealModule {
+    // Timelock-based strategy management
+    function scheduleStrategyUpdate(address newStrategy) external;
+    function cancelStrategyUpdate(address newStrategy) external;
     
-    function setRevealStrategy(uint256 strategyId, address strategyAddress) external;
-    function setTokenStrategy(uint256 tokenId, uint256 strategyId) external;
-    function setDefaultStrategy(uint256 newDefaultStrategyId) external;
-    function reveal(uint256 tokenId) external;
+    // Reveal functionality - removed backward compatibility function
+    function reveal(address nftContract, uint256 tokenId) external;
     
-    event RandomWordsRequestSent(uint256 requestId, uint256 tokenId);
-    event RevealSuccessful(uint256 tokenId, uint256 randomness);
+    event RandomWordsRequestSent(uint256 requestId, address indexed nftContract, uint256 tokenId);
+    event RevealSuccessful(address indexed nftContract, uint256 indexed tokenId, uint256 randomness);
 }
