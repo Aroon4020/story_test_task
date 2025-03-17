@@ -4,11 +4,12 @@ pragma solidity ^0.8.26;
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol"; // For contracts that receive ERC721
-import "@openzeppelin/contracts/utils/Address.sol"; // Add Address library
+import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol"; 
+import "@openzeppelin/contracts/utils/Address.sol"; 
 import "./interfaces/ISPNFT.sol";
 import "./interfaces/IRevealableNFT.sol";
-import "./utils/Errors.sol" as CustomErrors;  // Use alias to avoid conflict
+import "./interfaces/IRevealStrategy.sol"; // Add this import for strategy interface
+import "./utils/Errors.sol" as CustomErrors;
 import "./utils/Events.sol";
 
 /**
@@ -17,7 +18,7 @@ import "./utils/Events.sol";
  * @dev Extends ERC721 with revealing capabilities for metadata
  */
 contract SPNFT is ERC721, Ownable, ReentrancyGuard, ISPNFT, IRevealableNFT, ERC721Holder {
-    using Address for address payable; // Add this line to use the library
+    using Address for address payable;
     
     //--------------------------------------------------------------------------
     // STATE VARIABLES
@@ -38,28 +39,22 @@ contract SPNFT is ERC721, Ownable, ReentrancyGuard, ISPNFT, IRevealableNFT, ERC7
     /// @notice Tracks whether a token has been revealed
     mapping(uint256 => bool) public override revealed;
 
-    /// @notice Address of the reveal module that can update metadata
-    address public override revealModule;
+    /// @notice Current active reveal strategy
+    address public revealStrategy;
     
-    /// @notice Address of the approved strategy that can burn tokens
-    address public approvedStrategy;
-
+    /// @notice Approved strategies that can interact with this contract
+    mapping(address => bool) public approvedStrategies;
+    
     //--------------------------------------------------------------------------
     // CONSTRUCTOR
     //--------------------------------------------------------------------------
 
-    /**
-     * @param _owner Address that will own the contract
-     */
     constructor(address _owner) ERC721("SPNFT", "SPNFT") Ownable(_owner) {}
 
     //--------------------------------------------------------------------------
     // RECEIVE FUNCTION
     //--------------------------------------------------------------------------
 
-    /**
-     * @notice Allows the contract to receive ETH
-     */
     receive() external payable {
         // Allow contract to receive ETH
     }
@@ -69,10 +64,10 @@ contract SPNFT is ERC721, Ownable, ReentrancyGuard, ISPNFT, IRevealableNFT, ERC7
     //--------------------------------------------------------------------------
 
     /**
-     * @notice Restricts function to be called only by the reveal module
+     * @notice Restricts function to be called only by approved strategies
      */
-    modifier onlyRevealModule() {
-        if (msg.sender != revealModule) revert CustomErrors.Errors.Unauthorized();
+    modifier onlyApprovedStrategy() {
+        if (!approvedStrategies[msg.sender]) revert CustomErrors.Errors.Unauthorized();
         _;
     }
 
@@ -81,12 +76,24 @@ contract SPNFT is ERC721, Ownable, ReentrancyGuard, ISPNFT, IRevealableNFT, ERC7
     //--------------------------------------------------------------------------
 
     /**
-     * @notice Set the reveal module address
-     * @param _module The address of the reveal module contract
+     * @notice Configure strategy settings - approve/revoke and optionally set as active
+     * @param _strategy The strategy address to configure
+     * @param _approved Whether to approve (true) or revoke (false) the strategy
+     * @param _setAsActive Whether to also set this strategy as the active one
      */
-    function setRevealModule(address _module) external override onlyOwner {
-        revealModule = _module;
-        emit Events.RevealModuleSet(_module);
+    function configureStrategy(address _strategy, bool _approved, bool _setAsActive) external onlyOwner {
+        if (_strategy == address(0)) revert CustomErrors.Errors.ZeroAddress();
+        
+        // Update approval status
+        approvedStrategies[_strategy] = _approved;
+        emit Events.StrategyApprovalChanged(_strategy, _approved);
+        
+        // If requested and approved, set as active strategy
+        if (_setAsActive) {
+            if (!_approved) revert CustomErrors.Errors.InvalidParameter();
+            revealStrategy = _strategy;
+            emit Events.RevealStrategySet(_strategy);
+        }
     }
     
     /**
@@ -108,7 +115,7 @@ contract SPNFT is ERC721, Ownable, ReentrancyGuard, ISPNFT, IRevealableNFT, ERC7
         if (amount > address(this).balance) 
             revert CustomErrors.Errors.InsufficientFunds(amount, address(this).balance);
         
-        payable(to).sendValue(amount); // Using Address.sendValue 
+        payable(to).sendValue(amount);
         emit Events.ETHWithdrawn(to, amount);
     }
 
@@ -130,7 +137,7 @@ contract SPNFT is ERC721, Ownable, ReentrancyGuard, ISPNFT, IRevealableNFT, ERC7
      * @param tokenId ID of the token to reveal
      * @param metadata New metadata for the token
      */
-    function setTokenRevealed(uint256 tokenId, string memory metadata) external override(ISPNFT, IRevealableNFT) onlyRevealModule {
+    function setTokenRevealed(uint256 tokenId, string memory metadata) external override(ISPNFT, IRevealableNFT) onlyApprovedStrategy {
         if (!_exists(tokenId)) revert CustomErrors.Errors.TokenNonexistent(tokenId);
         _revealedMetadata[tokenId] = metadata;
         revealed[tokenId] = true;
@@ -138,11 +145,11 @@ contract SPNFT is ERC721, Ownable, ReentrancyGuard, ISPNFT, IRevealableNFT, ERC7
     }
 
     /**
-     * @notice Burn a token (for reveal module use)
+     * @notice Burn a token (only approved strategies can call)
      * @param tokenId ID of the token to burn
      * @return Owner of the token before burning
      */
-    function burn(uint256 tokenId) external override(ISPNFT, IRevealableNFT) onlyRevealModule returns (address) {
+    function burn(uint256 tokenId) external override(ISPNFT, IRevealableNFT) onlyApprovedStrategy returns (address) {
         address tokenOwner = ownerOf(tokenId);
         _burn(tokenId);
         emit Events.TokenBurned(tokenOwner, tokenId);
@@ -150,28 +157,18 @@ contract SPNFT is ERC721, Ownable, ReentrancyGuard, ISPNFT, IRevealableNFT, ERC7
     }
     
     /**
-     * @notice Set the approved strategy that can burn tokens
-     * @param _strategy The address of the approved strategy contract
+     * @notice Reveal a token using the current strategy
+     * @param tokenId ID of the token to reveal
+     * @param randomResult Random value to use for the reveal
      */
-    function setApprovedStrategy(address _strategy) external onlyOwner {
-        if (_strategy == address(0)) revert CustomErrors.Errors.ZeroAddress();
-        approvedStrategy = _strategy;
-        emit Events.ApprovedStrategySet(_strategy);
-    }
-    
-    /**
-     * @notice Burn a token (for approved strategy use)
-     * @param tokenId ID of the token to burn
-     * @return Owner of the token before burning
-     */
-    function burnByStrategy(uint256 tokenId) external returns (address) {
-        if (msg.sender != approvedStrategy) revert CustomErrors.Errors.Unauthorized();
-        if (approvedStrategy == address(0)) revert CustomErrors.Errors.StrategyNotSet(0);
+    function revealToken(uint256 tokenId, uint256 randomResult) external onlyOwner {
+        if (revealStrategy == address(0)) revert CustomErrors.Errors.StrategyNotSet(0);
         if (!_exists(tokenId)) revert CustomErrors.Errors.TokenNonexistent(tokenId);
-        address tokenOwner = ownerOf(tokenId);
-        _burn(tokenId);
-        emit Events.TokenBurned(tokenOwner, tokenId);
-        return tokenOwner;
+        if (revealed[tokenId]) revert CustomErrors.Errors.AlreadyRevealed(tokenId);
+        
+        // Call the strategy to handle the reveal
+        bool success = IRevealStrategy(revealStrategy).reveal(payable(address(this)), tokenId, randomResult);
+        if (!success) revert CustomErrors.Errors.RevealFailed(tokenId);
     }
     
     /**

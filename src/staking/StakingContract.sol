@@ -2,6 +2,7 @@
 pragma solidity ^0.8.26;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol"; // Add ERC721Holder
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol"; // Add SafeERC20
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -10,7 +11,7 @@ import "../RevealModule.sol";
 import "../utils/Errors.sol";
 import "../utils/Events.sol";
 
-contract StakingContract is Ownable, IStakingContract {
+contract StakingContract is Ownable, IStakingContract, ERC721Holder {
     using SafeERC20 for ERC20; // Add SafeERC20 usage
     
     ERC20 public rewardToken;

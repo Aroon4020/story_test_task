@@ -5,16 +5,17 @@ import {VRFConsumerBaseV2Plus} from "@chainlink/contracts/src/v0.8/vrf/dev/VRFCo
 import {VRFV2PlusClient} from "@chainlink/contracts/src/v0.8/vrf/dev/libraries/VRFV2PlusClient.sol";
 import "@openzeppelin/contracts/governance/TimelockController.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+// Remove Ownable import as VRFConsumerBaseV2Plus already has ownership functionality
 import "./interfaces/IRevealStrategy.sol";
 import "./interfaces/IRevealModule.sol";
-import "./utils/Errors.sol" as CustomErrors;  // Use alias to avoid conflict
+import "./utils/Errors.sol" as CustomErrors;
 import "./utils/Events.sol";
 
 /**
  * @title RevealModule
  * @notice Manages NFT reveal with Chainlink VRF and timelock-protected strategy updates
  */
-contract RevealModule is VRFConsumerBaseV2Plus, IRevealModule {
+contract RevealModule is VRFConsumerBaseV2Plus, IRevealModule {  // Remove Ownable inheritance
     // Timelock controller for strategy updates
     TimelockController public timelock;
     
@@ -67,6 +68,10 @@ contract RevealModule is VRFConsumerBaseV2Plus, IRevealModule {
     )
         VRFConsumerBaseV2Plus(_vrfCoordinator)
     {
+        // Only transfer ownership if not already owned by _owner
+        if (owner() != _owner) {
+            transferOwnership(_owner);
+        }
         
         // Initialize the timelock
         address[] memory proposers = new address[](1);
@@ -263,5 +268,40 @@ contract RevealModule is VRFConsumerBaseV2Plus, IRevealModule {
         
         // Clean up storage
         delete revealRequests[requestId];
+    }
+    
+    /**
+     * @notice Update only the callback gas limit for VRF requests
+     * @param _callbackGasLimit New gas limit for the VRF callback
+     */
+    function updateCallbackGasLimit(uint32 _callbackGasLimit) external onlyOwner {
+        callbackGasLimit = _callbackGasLimit;
+        emit Events.CallbackGasLimitUpdated(_callbackGasLimit);
+    }
+    
+    /**
+     * @notice Update the VRF parameters
+     */
+    function updateVRFParameters(
+        bytes32 _keyHash,
+        uint64 _subscriptionId,
+        uint16 _requestConfirmations,
+        uint32 _callbackGasLimit,
+        uint32 _numWords
+    ) external onlyOwner {
+        keyHash = _keyHash;
+        subscriptionId = _subscriptionId;
+        requestConfirmations = _requestConfirmations;
+        callbackGasLimit = _callbackGasLimit;
+        numWords = _numWords;
+        emit Events.VRFParametersUpdated(_keyHash, _subscriptionId, _requestConfirmations, _callbackGasLimit, _numWords);
+    }
+
+    /**
+     * @notice Returns the current reveal strategy address
+     * @return Address of the current strategy contract
+     */
+    function getRevealStrategy() external view returns (address) {
+        return address(revealStrategy);
     }
 }

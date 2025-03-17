@@ -6,9 +6,6 @@ interface ISPNFT {
     function mintPrice() external view returns (uint256);
     function basePlaceholderMetadata() external view returns (string memory);
     function revealed(uint256 tokenId) external view returns (bool);
-    function revealModule() external view returns (address);
-    
-    function setRevealModule(address _module) external;
     function setMintPrice(uint256 _mintPrice) external; // New function
     function mint() external payable;
     function tokenURI(uint256 tokenId) external view returns (string memory);
