@@ -41,6 +41,8 @@ library Events {
     event Staked(address indexed owner, uint256 indexed tokenId, uint256 timestamp);
     event Unstaked(address indexed owner, uint256 indexed tokenId, uint256 timestamp);
     event RewardClaimed(address indexed owner, uint256 indexed tokenId, uint256 amount);
+    event RewardAdded(address indexed from, uint256 amount);
+    event RewardWithdrawn(address indexed to, uint256 amount);
 
     // Strategy update events
     event StrategyUpdateScheduled(address indexed newStrategy, uint256 activationTime);

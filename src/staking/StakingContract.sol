@@ -113,6 +113,24 @@ contract StakingContract is Ownable, IStakingContract, ERC721Holder {
         emit Events.Unstaked(msg.sender, tokenId, block.timestamp);
     }
 
+    /// @notice Claim rewards without unstaking the NFT
+    function claimReward(uint256 tokenId) external {
+        StakeInfo storage stakeInfo = stakes[tokenId];
+        
+        if (!stakeInfo.staked) revert Errors.NotStaked(tokenId);
+        if (stakeInfo.owner != msg.sender) revert Errors.NotTokenOwner(msg.sender, tokenId);
+        
+        uint256 reward = calculateReward(tokenId);
+        if (reward > 0) {
+            // Update staking timestamp to reset reward calculation
+            stakeInfo.stakedAt = block.timestamp;
+            
+            // Transfer rewards to user
+            rewardToken.safeTransfer(msg.sender, reward);
+            emit Events.RewardClaimed(msg.sender, tokenId, reward);
+        }
+    }
+
     /// @notice Calculates accrued reward based on staking duration.
     function calculateReward(uint256 tokenId) public view override returns (uint256) {
         StakeInfo storage stakeInfo = stakes[tokenId];
@@ -123,5 +141,28 @@ contract StakingContract is Ownable, IStakingContract, ERC721Holder {
         // For simplicity, assume a base reward of 1e18 tokens per year per NFT.
         uint256 baseReward = 1e18;
         return (baseReward * APY * stakingDuration) / (100 * SECONDS_IN_YEAR);
+    }
+
+    /**
+     * @notice Add reward tokens to the contract
+     * @param amount Amount of tokens to add
+     */
+    function addReward(uint256 amount) external {
+        // Transfer tokens from sender to this contract
+        rewardToken.safeTransferFrom(msg.sender, address(this), amount);
+        emit Events.RewardAdded(msg.sender, amount);
+    }
+
+    /**
+     * @notice Withdraw reward tokens from the contract (only owner)
+     * @param to Address to receive the withdrawn tokens
+     * @param amount Amount of tokens to withdraw
+     */
+    function withdrawReward(address to, uint256 amount) external onlyOwner {
+        if (to == address(0)) revert Errors.ZeroAddress();
+        
+        // Transfer tokens from contract to recipient
+        rewardToken.safeTransfer(to, amount);
+        emit Events.RewardWithdrawn(to, amount);
     }
 }

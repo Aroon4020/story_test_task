@@ -92,7 +92,9 @@ contract BaseTest is Test, ERC721Holder {
         
         // Grant roles - REMOVED vm.prank() calls since we're already in vm.startPrank(deployer)
         timelock.grantRole(PROPOSER_ROLE, deployer);
+        timelock.grantRole(PROPOSER_ROLE, address(revealModule)); // Add this line to give RevealModule the PROPOSER_ROLE
         timelock.grantRole(CANCELLER_ROLE, deployer);
+        timelock.grantRole(CANCELLER_ROLE, address(revealModule)); // Add this line to give RevealModule the CANCELLER_ROLE
         timelock.grantRole(EXECUTOR_ROLE, address(0)); // Allow anyone to execute
         
         // Setup approvals and connections - use new API
