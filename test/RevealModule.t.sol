@@ -52,35 +52,6 @@ contract RevealModuleTest is BaseTest {
         
         assertTrue(nft.revealed(tokenId), "Token should be revealed after updating gas limit");
     }
-    
-    function testUpdateVRFParameters() public {
-        bytes32 newKeyHash = bytes32(uint256(2));
-        uint64 newSubscriptionId = 2;
-        uint16 newRequestConfirmations = 5;
-        uint32 newCallbackGasLimit = 250000;
-        uint32 newNumWords = 1;
-        
-        vm.prank(deployer);
-        revealModule.updateVRFParameters(
-            newKeyHash,
-            newSubscriptionId,
-            newRequestConfirmations,
-            newCallbackGasLimit,
-            newNumWords
-        );
-        
-        // Test basic reveal functionality still works after update
-        uint256 tokenId = mintNFT(alice);
-        vm.prank(alice);
-        revealModule.reveal(address(nft), tokenId);
-        
-        // Verify reveal request was sent (our mock ignores parameter changes)
-        uint256 requestId = 1;
-        vm.prank(address(vrfCoordinator));
-        vrfCoordinator.fulfillRandomness(requestId, address(revealModule));
-        
-        assertTrue(nft.revealed(tokenId), "Token should be revealed after updating VRF parameters");
-    }
 
     // ================================================================
     // POSITIVE TEST CASES - SEPARATE COLLECTION STRATEGY
@@ -404,14 +375,6 @@ contract RevealModuleTest is BaseTest {
         vm.prank(alice); // Non-owner
         vm.expectRevert();
         revealModule.updateCallbackGasLimit(newGasLimit);
-    }
-    
-    function testUpdateVRFParameters_RevertsForNonOwner() public {
-        bytes32 newKeyHash = bytes32(uint256(2));
-        
-        vm.prank(alice); // Non-owner
-        vm.expectRevert();
-        revealModule.updateVRFParameters(newKeyHash, 2, 5, 250000, 2);
     }
     
     function testExecuteStrategyUpdate_RevertsForNonTimelock() public {

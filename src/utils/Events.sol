@@ -22,12 +22,13 @@ library Events {
     event RevealStrategySet(uint256 indexed strategyId, address indexed strategyAddress);
     event TokenStrategySet(uint256 indexed tokenId, uint256 indexed strategyId);
     event DefaultStrategySet(uint256 indexed strategyId);
-    event VRFParametersUpdated(bytes32 keyHash, uint64 subscriptionId, uint16 requestConfirmations, uint32 callbackGasLimit, uint32 numWords);
+    event RequestConfirmationsUpdated(uint16 requestConfirmations);
     event CallbackGasLimitUpdated(uint32 callbackGasLimit); // New event for focused gas limit updates
     event RandomWordsRequestSent(uint256 requestId, address indexed nftContract, uint256 tokenId);
     event RevealSuccessful(address indexed nftContract, uint256 indexed tokenId, uint256 randomness);
+    event RevealFailed(address indexed nftContract, uint256 indexed tokenId);
     event NFTContractApprovalChanged(address indexed nftContract, bool approved);
-    
+    event TimelockDelayUpdated(uint256 newDelay);
     // Add new events for direct strategy management
     event RevealStrategySet(address indexed strategyAddress);
     event StrategyApprovalChanged(address indexed strategy, bool approved);

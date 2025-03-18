@@ -110,7 +110,7 @@ contract SPNFTTest is BaseTest {
     // Test that getTokenOwner returns the correct owner.
     function testGetTokenOwner() public {
         uint256 tokenId = mintNFT(alice);
-        address owner = nft.getTokenOwner(tokenId);
+        address owner = nft.ownerOf(tokenId);
         assertEq(owner, alice, "getTokenOwner should return Alice as owner");
     }
     

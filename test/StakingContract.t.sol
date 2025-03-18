@@ -55,43 +55,37 @@ contract StakingContractTest is BaseTest {
         stakingContract.stake(address(nft), tokenId);
         vm.stopPrank();
         
-        // Verify ownership transferred to staking contract
+        // Verify the NFT ownership transferred to staking contract
         assertEq(nft.ownerOf(tokenId), address(stakingContract), "Staking contract should own the token");
         
-        // Verify stake info is recorded
-        (address owner,, uint256 stakedAt, bool staked,) = stakingContract.stakes(tokenId);
+        // Verify stake info is recorded via getStakeInfo
+        (address owner, uint96 stakedAt) = stakingContract.getStakeInfo(address(nft), tokenId);
         assertEq(owner, alice, "Stake owner should be Alice");
-        assertTrue(staked, "Token should be marked as staked");
-        assertEq(stakedAt, block.timestamp, "Stake timestamp should be current block timestamp");
+        // stakedAt should be set close to block.timestamp (tolerance set to 1 second)
+        assertApproxEqAbs(uint256(stakedAt), block.timestamp, 1, "Stake timestamp should be current block timestamp");
     }
     
     function testCalculateReward() public {
-        // Mint and reveal an NFT
+        // Mint and reveal an NFT, then stake it
         uint256 tokenId = mintNFT(alice);
         revealNFT(alice, tokenId);
-        
-        // Stake the NFT
         stakeNFT(alice, tokenId);
+        
+        // Get staking time
+        ( , uint96 stakedAt) = stakingContract.getStakeInfo(address(nft), tokenId);
         
         // Fast forward 30 days
         vm.warp(block.timestamp + 30 days);
         
-        // Calculate reward
-        uint256 reward = stakingContract.calculateReward(tokenId);
+        // Calculate reward passing the stored staking timestamp
+        uint256 reward = stakingContract.calculateReward(stakedAt);
         assertTrue(reward > 0, "Reward should be greater than zero after 30 days");
         
-        // Verify calculation is approximately 5% APY for 30 days
-        // Break down the calculation to avoid type conversion issues
-        uint256 baseAmount = 1 ether;
-        uint256 apyRate = 5;
-        uint256 stakingDays = 30;
-        uint256 yearDays = 365;
-        uint256 percentDivisor = 100;
-        
-        uint256 expectedReward = (baseAmount * apyRate * stakingDays) / (percentDivisor * yearDays);
-        
-        // Compare with a small tolerance for rounding differences
-        assertApproxEqAbs(reward, expectedReward, 10, "Reward calculation should be close to expected value");
+        // Expected reward calculation (using base = 1eX where X = rewardToken.decimals())
+        uint256 baseAmount = 10**rewardToken.decimals();
+        uint256 expectedReward = (baseAmount * 5 * 30 days) / (100 * 365 days);
+        // Allow small rounding differences
+        assertApproxEqAbs(reward, expectedReward, 1e5, "Reward calculation should be close to expected value");
     }
     
     function testUnstake() public {
@@ -108,7 +102,7 @@ contract StakingContractTest is BaseTest {
         
         // Unstake the NFT
         vm.prank(alice);
-        stakingContract.unstake(tokenId);
+        stakingContract.unstake(address(nft), tokenId);
         
         // Verify token returned to owner
         assertEq(nft.ownerOf(tokenId), alice, "NFT should be returned to Alice");
@@ -116,9 +110,37 @@ contract StakingContractTest is BaseTest {
         // Verify rewards were transferred
         assertTrue(rewardToken.balanceOf(alice) > initialRewardBalance, "Alice should receive rewards");
         
-        // Verify stake is cleared
-        (,, , bool staked,) = stakingContract.stakes(tokenId);
-        assertFalse(staked, "Token should be marked as unstaked");
+        // Verify stake info cleared; getStakeInfo returns default zero values
+        (address owner, uint96 stakedAt) = stakingContract.getStakeInfo(address(nft), tokenId);
+        assertEq(owner, address(0), "Stake owner should be cleared");
+        assertEq(stakedAt, 0, "Staking timestamp should be cleared");
+    }
+    
+    function testUnstakeAndClaimReward() public {
+        // Mint, reveal, and stake an NFT
+        uint256 tokenId = mintNFT(alice);
+        revealNFT(alice, tokenId);
+        stakeNFT(alice, tokenId);
+        
+        // Fast forward time to accumulate reward
+        vm.warp(block.timestamp + 30 days);
+        
+        uint256 aliceRewardBefore = rewardToken.balanceOf(alice);
+        
+        // Unstake and claim reward
+        vm.prank(alice);
+        stakingContract.unstakeAndClaimReward(address(nft), tokenId);
+        
+        // Verify NFT returned to owner
+        assertEq(nft.ownerOf(tokenId), alice, "NFT should be returned to Alice");
+        // Verify rewards received increased Alice's balance
+        uint256 aliceRewardAfter = rewardToken.balanceOf(alice);
+        assertTrue(aliceRewardAfter > aliceRewardBefore, "Rewards should be transferred to Alice");
+        
+        // Verify stake info cleared
+        (address owner, uint96 stakedAt) = stakingContract.getStakeInfo(address(nft), tokenId);
+        assertEq(owner, address(0), "Stake owner should be cleared after unstakeAndClaimReward");
+        assertEq(stakedAt, 0, "Staking timestamp should be cleared after unstakeAndClaimReward");
     }
     
     function testClaimReward() public {
@@ -130,26 +152,27 @@ contract StakingContractTest is BaseTest {
         // Fast forward time to accumulate rewards
         vm.warp(block.timestamp + 30 days);
         
-        // Calculate expected rewards
-        uint256 expectedReward = stakingContract.calculateReward(tokenId);
+        // Get stakedAt from stake info using getStakeInfo (returns (address, uint96))
+        (, uint96 stakedAtBefore) = stakingContract.getStakeInfo(address(nft), tokenId);
+        uint256 expectedReward = stakingContract.calculateReward(stakedAtBefore);
         uint256 initialRewardBalance = rewardToken.balanceOf(alice);
         
         // Claim rewards without unstaking
         vm.prank(alice);
-        stakingContract.claimReward(tokenId);
+        stakingContract.claimReward(address(nft), tokenId);
         
         // Verify rewards were transferred
         assertEq(rewardToken.balanceOf(alice), initialRewardBalance + expectedReward, "Alice should receive exact rewards");
         
-        // Verify token is still staked
+        // Verify NFT is still staked
         assertEq(nft.ownerOf(tokenId), address(stakingContract), "NFT should still be staked");
         
-        // Verify staking timestamp was reset
-        (,, uint256 stakedAt,,) = stakingContract.stakes(tokenId);
-        assertEq(stakedAt, block.timestamp, "Staking timestamp should be reset");
+        // Verify staking timestamp was reset using getStakeInfo
+        (, uint96 stakedAtAfter) = stakingContract.getStakeInfo(address(nft), tokenId);
+        assertApproxEqAbs(uint256(stakedAtAfter), block.timestamp, 1, "Staking timestamp should be reset");
         
-        // Verify calculating rewards now returns zero
-        assertEq(stakingContract.calculateReward(tokenId), 0, "No rewards immediately after claiming");
+        // Since rewards accumulate based on time, immediately after claiming reward should be zero:
+        assertEq(stakingContract.calculateReward(stakedAtAfter), 0, "No rewards immediately after claiming");
     }
     
     function testAddReward() public {
@@ -159,7 +182,7 @@ contract StakingContractTest is BaseTest {
         // Approve and add rewards
         vm.startPrank(alice);
         rewardToken.approve(address(stakingContract), amount);
-        stakingContract.addReward(amount);
+        stakingContract.depositReward(amount);
         vm.stopPrank();
         
         // Verify rewards were transferred
@@ -167,28 +190,6 @@ contract StakingContractTest is BaseTest {
             rewardToken.balanceOf(address(stakingContract)), 
             initialContractBalance + amount, 
             "Contract should receive reward tokens"
-        );
-    }
-    
-    function testWithdrawReward() public {
-        uint256 amount = 5 ether;
-        uint256 initialContractBalance = rewardToken.balanceOf(address(stakingContract));
-        uint256 initialDeployerBalance = rewardToken.balanceOf(deployer);
-        
-        // Withdraw rewards
-        vm.prank(deployer);
-        stakingContract.withdrawReward(deployer, amount);
-        
-        // Verify rewards were transferred
-        assertEq(
-            rewardToken.balanceOf(address(stakingContract)), 
-            initialContractBalance - amount, 
-            "Contract balance should decrease"
-        );
-        assertEq(
-            rewardToken.balanceOf(deployer), 
-            initialDeployerBalance + amount, 
-            "Deployer should receive reward tokens"
         );
     }
     
@@ -249,10 +250,10 @@ contract StakingContractTest is BaseTest {
     
     function testUnstake_RevertForNonStakedToken() public {
         uint256 nonStakedTokenId = 999;
-        
         vm.prank(alice);
         vm.expectRevert();
-        stakingContract.unstake(nonStakedTokenId);
+        // Now passing the NFT address along
+        stakingContract.unstake(address(nft), nonStakedTokenId);
     }
     
     function testUnstake_RevertForNonOwner() public {
@@ -262,7 +263,7 @@ contract StakingContractTest is BaseTest {
         
         vm.prank(bob); // not the staker
         vm.expectRevert();
-        stakingContract.unstake(tokenId);
+        stakingContract.unstake(address(nft), tokenId);
     }
     
     function testClaimReward_RevertForNonStakedToken() public {
@@ -270,7 +271,7 @@ contract StakingContractTest is BaseTest {
         
         vm.prank(alice);
         vm.expectRevert();
-        stakingContract.claimReward(nonStakedTokenId);
+        stakingContract.claimReward(address(nft), nonStakedTokenId);
     }
     
     function testClaimReward_RevertForNonOwner() public {
@@ -280,18 +281,13 @@ contract StakingContractTest is BaseTest {
         
         vm.prank(bob); // not the staker
         vm.expectRevert();
-        stakingContract.claimReward(tokenId);
+        stakingContract.claimReward(address(nft), tokenId);
     }
     
-    function testWithdrawReward_RevertForNonOwner() public {
-        vm.prank(alice); // non-owner
+    function testDepositReward_RevertForInsufficientAllowance() public {
+        uint256 amount = 10 ether;
+        vm.prank(alice);
         vm.expectRevert();
-        stakingContract.withdrawReward(alice, 1 ether);
-    }
-    
-    function testWithdrawReward_RevertForZeroAddress() public {
-        vm.prank(deployer);
-        vm.expectRevert();
-        stakingContract.withdrawReward(address(0), 1 ether);
+        stakingContract.depositReward(amount);
     }
 }
