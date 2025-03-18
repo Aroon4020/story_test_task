@@ -84,18 +84,6 @@ Run a local Ethereum node for testing and development:
 $ anvil
 ```
 
-### Deploy Contracts
-
-Deploy the contracts using the provided deployment scripts:
-
-1. **Deploy Contracts**:
-
-   ```shell
-   $ forge script script/DeployContracts.s.sol --rpc-url $BASE_RPC_URL --private-key $PRIVATE_KEY --broadcast
-   ```
-
-   For more details, refer to the deployment scripts in the `script` folder.
-
 ### Cast
 
 Interact with the Ethereum blockchain using `cast`:
