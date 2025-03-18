@@ -39,13 +39,13 @@ contract StakingContract is Ownable, IStakingContract, ERC721Holder, ReentrancyG
     // Constants
     uint256 public constant APY = 5;
     uint256 public constant SECONDS_IN_YEAR = 365 days;
-    
+
     // Immutable variables
     IERC20Metadata public immutable rewardToken;
-    
+
     // Regular state variables
     RevealModule public revealModule;
-    
+
     // ---------- Mappings ----------
     mapping(address => bool) public approvedNFTContracts;
     mapping(bytes32 => StakeInfo) public stakes;
@@ -57,11 +57,7 @@ contract StakingContract is Ownable, IStakingContract, ERC721Holder, ReentrancyG
      * @param _revealModule Address of the reveal module contract.
      * @param _owner Owner address for this contract.
      */
-    constructor(
-        address _rewardToken,
-        address _revealModule,
-        address _owner
-    ) Ownable(_owner) {
+    constructor(address _rewardToken, address _revealModule, address _owner) Ownable(_owner) {
         // Set reward token (using IERC20Metadata for decimal support)
         rewardToken = IERC20Metadata(_rewardToken);
         // Initialize the reveal module contract
@@ -101,13 +97,13 @@ contract StakingContract is Ownable, IStakingContract, ERC721Holder, ReentrancyG
     function stake(address nftContract, uint256 tokenId) external override nonReentrant {
         if (!approvedNFTContracts[nftContract]) revert Errors.ContractNotApproved(nftContract);
         if (!revealModule.isRevealed(nftContract, tokenId)) revert Errors.NFTNotRevealed(tokenId);
-        
+
         bytes32 stakeKey = _getStakeKey(nftContract, tokenId);
         // Transfer the NFT from the staker to this contract.
         IERC721(nftContract).safeTransferFrom(msg.sender, address(this), tokenId);
         // Record staking information using packed StakeInfo.
         stakes[stakeKey] = StakeInfo(msg.sender, uint96(block.timestamp));
-        
+
         emit Events.Staked(msg.sender, tokenId, block.timestamp);
     }
 
@@ -121,10 +117,10 @@ contract StakingContract is Ownable, IStakingContract, ERC721Holder, ReentrancyG
         bytes32 stakeKey = _getStakeKey(nftContract, tokenId);
         StakeInfo memory stakeInfo = stakes[stakeKey];
         if (stakeInfo.owner != msg.sender) revert Errors.NotTokenOwner(msg.sender, tokenId);
-        
+
         delete stakes[stakeKey];
         IERC721(nftContract).safeTransferFrom(address(this), msg.sender, tokenId);
-        
+
         emit Events.Unstaked(msg.sender, tokenId, block.timestamp);
     }
 
@@ -138,7 +134,7 @@ contract StakingContract is Ownable, IStakingContract, ERC721Holder, ReentrancyG
         bytes32 stakeKey = _getStakeKey(nftContract, tokenId);
         StakeInfo memory stakeInfo = stakes[stakeKey];
         if (stakeInfo.owner != msg.sender) revert Errors.NotTokenOwner(msg.sender, tokenId);
-        
+
         uint256 reward = calculateReward(stakeInfo.stakedAt);
         delete stakes[stakeKey];
         if (reward > 0) {
@@ -158,7 +154,7 @@ contract StakingContract is Ownable, IStakingContract, ERC721Holder, ReentrancyG
         bytes32 stakeKey = _getStakeKey(nftContract, tokenId);
         StakeInfo storage stakeInfo = stakes[stakeKey];
         if (stakeInfo.owner != msg.sender) revert Errors.NotTokenOwner(msg.sender, tokenId);
-        
+
         uint256 reward = calculateReward(stakeInfo.stakedAt);
         if (reward > 0) {
             // Reset the staking timestamp to current time.

@@ -9,6 +9,9 @@ interface IStakingContract {
     function unstakeAndClaimReward(address nftContract, uint256 tokenId) external;
     function claimReward(address nftContract, uint256 tokenId) external;
     function calculateReward(uint96 stakedAt) external view returns (uint256);
-    function getStakeInfo(address nftContract, uint256 tokenId) external view returns (address owner, uint96 stakedAt);
+    function getStakeInfo(address nftContract, uint256 tokenId)
+        external
+        view
+        returns (address owner, uint96 stakedAt);
     function depositReward(uint256 amount) external;
 }

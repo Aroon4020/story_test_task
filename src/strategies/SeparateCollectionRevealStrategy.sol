@@ -20,13 +20,13 @@ import "../utils/Errors.sol";
  */
 contract SeparateCollectionRevealStrategy is IRevealStrategy, Ownable {
     // ---------- State Variables ----------
-    
+
     // Revealed NFT contract instance used to mint revealed tokens.
     IRevealedNFT public immutable revealedNFT;
-    
+
     // Address of the module allowed to trigger the reveal process.
     address public revealModule;
-    
+
     // ---------- Modifiers ----------
     /**
      * @notice Restricts function execution to the designated reveal module.
@@ -35,7 +35,7 @@ contract SeparateCollectionRevealStrategy is IRevealStrategy, Ownable {
         if (msg.sender != revealModule) revert Errors.Unauthorized();
         _;
     }
-    
+
     // ---------- Constructor ----------
     /**
      * @notice Initializes the SeparateCollectionRevealStrategy contract.
@@ -45,7 +45,7 @@ contract SeparateCollectionRevealStrategy is IRevealStrategy, Ownable {
     constructor(address _revealedNFT, address _owner) Ownable(_owner) {
         revealedNFT = IRevealedNFT(_revealedNFT);
     }
-    
+
     // ---------- External Functions ----------
     /**
      * @notice Set the reveal module address. Can only be set once.
@@ -58,7 +58,7 @@ contract SeparateCollectionRevealStrategy is IRevealStrategy, Ownable {
         revealModule = _revealModule;
         emit Events.RevealModuleSetForStrategy(_revealModule);
     }
-    
+
     /**
      * @notice Reveal a token by burning it in the original collection and minting it with generated metadata.
      * @param nftContract The address of the NFT contract (must implement ISPNFT and IERC721).
@@ -67,11 +67,7 @@ contract SeparateCollectionRevealStrategy is IRevealStrategy, Ownable {
      * @return True if the reveal process is successful.
      * @dev Only callable by the designated reveal module.
      */
-    function reveal(
-        address payable nftContract,
-        uint256 tokenId,
-        uint256 randomResult
-    )
+    function reveal(address payable nftContract, uint256 tokenId, uint256 randomResult)
         external
         override
         onlyRevealModule
@@ -79,16 +75,16 @@ contract SeparateCollectionRevealStrategy is IRevealStrategy, Ownable {
     {
         // Retrieve the token owner using the ERC721 interface.
         address tokenOwner = IERC721(nftContract).ownerOf(tokenId);
-        
+
         // Burn the token from the original collection using the ISPNFT interface.
         ISPNFT(nftContract).burn(tokenId);
-        
+
         // Generate the revealed metadata using the provided random result.
         string memory revealedMetadata = MetadataGenerator.generateMetadata(tokenId, randomResult);
-        
+
         // Mint the new revealed token to the original owner via the revealedNFT contract.
         revealedNFT.mint(tokenOwner, tokenId, revealedMetadata);
-        
+
         // Emit event logging the burn and mint operation.
         emit Events.TokenBurnedAndMinted(tokenId, tokenOwner, revealedMetadata);
         return true;

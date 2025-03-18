@@ -22,16 +22,25 @@ library MetadataGenerator {
         string memory hairValue = getHairValue((randomness / 4) % 5);
         string memory noseValue = getNoseValue((randomness / 20) % 3);
         string memory mouthValue = getMouthValue((randomness / 60) % 4);
-        
+
         return string(
             abi.encodePacked(
-                '{"name": "SP', tokenId.toString(), 
+                '{"name": "SP',
+                tokenId.toString(),
                 '", "description": "Story Protocol NFT", "attributes": [',
-                '{"trait_type": "Eyes", "value": "', eyesValue, '"},',
-                '{"trait_type": "Hair", "value": "', hairValue, '"},',
-                '{"trait_type": "Nose", "value": "', noseValue, '"},',
-                '{"trait_type": "Mouth", "value": "', mouthValue, '"}',
-                ']}'
+                '{"trait_type": "Eyes", "value": "',
+                eyesValue,
+                '"},',
+                '{"trait_type": "Hair", "value": "',
+                hairValue,
+                '"},',
+                '{"trait_type": "Nose", "value": "',
+                noseValue,
+                '"},',
+                '{"trait_type": "Mouth", "value": "',
+                mouthValue,
+                '"}',
+                "]}"
             )
         );
     }

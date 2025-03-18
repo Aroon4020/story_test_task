@@ -13,7 +13,7 @@ This document provides an overview of the architecture and flow of the NFT revea
     - [SeparateCollectionRevealStrategy](#separatecollectionrevealstrategy)
 4. [Key Components](#key-components)
 5. [Security Considerations](#security-considerations)
-6. [Sequence Diagram](#sequence-diagram)
+6. [Sequence Diagrams](#sequence-diagrams)
 
 ---
 
@@ -126,25 +126,41 @@ The flow for revealing NFTs by burning the existing NFT and minting to a separat
 
 ---
 
-## Sequence Diagram
+## Sequence Diagrams
 
-Below is a sequence diagram illustrating the flow of calls for the reveal process:
-
+### InCollectionRevealStrategy
 ```mermaid
 sequenceDiagram
     participant Owner as NFT Owner
     participant RevealModule as RevealModule
     participant ChainlinkVRF as Chainlink VRF
-    participant Strategy as Reveal Strategy
-    participant NFTContract as SPNFT/RevealedNFT
+    participant SPNFT as SPNFT
 
     Owner ->> RevealModule: reveal(nftContract, tokenId)
     RevealModule ->> RevealModule: Validate Request
     RevealModule ->> ChainlinkVRF: Request Randomness
     ChainlinkVRF ->> RevealModule: fulfillRandomWords(requestId, randomWords)
-    RevealModule ->> Strategy: reveal(nftContract, tokenId, randomWords[0])
-    Strategy ->> NFTContract: Update Metadata / Burn & Mint
-    Strategy ->> RevealModule: Return Success
+    RevealModule ->> SPNFT: setTokenRevealed(tokenId, metadata)
+    RevealModule ->> Owner: Emit RevealSuccessful Event
+```
+
+---
+
+### SeparateCollectionRevealStrategy
+```mermaid
+sequenceDiagram
+    participant Owner as NFT Owner
+    participant RevealModule as RevealModule
+    participant ChainlinkVRF as Chainlink VRF
+    participant SPNFT as SPNFT
+    participant RevealedNFT as RevealedNFT
+
+    Owner ->> RevealModule: reveal(nftContract, tokenId)
+    RevealModule ->> RevealModule: Validate Request
+    RevealModule ->> ChainlinkVRF: Request Randomness
+    ChainlinkVRF ->> RevealModule: fulfillRandomWords(requestId, randomWords)
+    RevealModule ->> SPNFT: burn(tokenId)
+    RevealModule ->> RevealedNFT: mint(tokenOwner, tokenId, metadata)
     RevealModule ->> Owner: Emit RevealSuccessful Event
 ```
 

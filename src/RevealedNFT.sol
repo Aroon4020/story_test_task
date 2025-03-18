@@ -16,17 +16,17 @@ import "./utils/Events.sol";
  */
 contract RevealedNFT is ERC721, Ownable, IRevealedNFT {
     // ---------- State Variables ----------
-    
+
     // Active reveal strategy contract address
     address public revealStrategy;
-    
+
     // ---------- Mappings ----------
     // Mapping to store approval status for strategies that are allowed to call restricted functions.
     mapping(address => bool) public approvedStrategies;
-    
+
     // Mapping to store metadata for revealed tokens.
     mapping(uint256 => string) private _tokenMetadata;
-    
+
     // ---------- Constructor ----------
     /**
      * @notice Initializes the RevealedNFT contract.
@@ -50,11 +50,7 @@ contract RevealedNFT is ERC721, Ownable, IRevealedNFT {
      * @param _approved Whether to approve (true) or revoke (false) the strategy.
      * @param _setAsActive Whether to also set this strategy as the active one.
      */
-    function configureStrategy(
-        address _strategy,
-        bool _approved,
-        bool _setAsActive
-    ) external onlyOwner {
+    function configureStrategy(address _strategy, bool _approved, bool _setAsActive) external onlyOwner {
         if (_strategy == address(0)) revert CustomErrors.Errors.ZeroAddress();
 
         // Update strategy approval status.
@@ -76,11 +72,11 @@ contract RevealedNFT is ERC721, Ownable, IRevealedNFT {
      * @param metadata The metadata for the token.
      * @dev Only an approved strategy can call this function.
      */
-    function mint(
-        address to,
-        uint256 tokenId,
-        string memory metadata
-    ) external override(IRevealedNFT) onlyApprovedStrategy {
+    function mint(address to, uint256 tokenId, string memory metadata)
+        external
+        override(IRevealedNFT)
+        onlyApprovedStrategy
+    {
         _safeMint(to, tokenId);
         _tokenMetadata[tokenId] = metadata;
         emit Events.RevealedNFTMinted(to, tokenId);
@@ -92,12 +88,7 @@ contract RevealedNFT is ERC721, Ownable, IRevealedNFT {
      * @param tokenId The token ID.
      * @return The token's metadata URI as a string.
      */
-    function tokenURI(uint256 tokenId)
-        public
-        view
-        override(ERC721, IRevealedNFT)
-        returns (string memory)
-    {
+    function tokenURI(uint256 tokenId) public view override(ERC721, IRevealedNFT) returns (string memory) {
         if (!_exists(tokenId)) revert CustomErrors.Errors.TokenNonexistent(tokenId);
         return _tokenMetadata[tokenId];
     }

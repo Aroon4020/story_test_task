@@ -23,15 +23,15 @@ contract SPNFT is ERC721, Ownable, ReentrancyGuard, ISPNFT, ERC721Holder {
 
     // ---------- State Variables ----------
     // Regular variables
-    uint256 public nextTokenId;                   // Counter for the next token to be minted
-    uint256 public mintPrice = 0.05 ether;          // Price to mint an NFT
+    uint256 public nextTokenId; // Counter for the next token to be minted
+    uint256 public mintPrice = 0.05 ether; // Price to mint an NFT
     string public basePlaceholderMetadata = '{"name": "Mystery Box", "description": "Unrevealed SP NFT"}'; // Default metadata for unrevealed NFTs
-    address public revealStrategy;                  // Active reveal strategy contract address
+    address public revealStrategy; // Active reveal strategy contract address
 
     // Mappings (declared after regular variables)
     mapping(uint256 => string) private _revealedMetadata; // Revealed metadata per tokenId
-    mapping(uint256 => bool) public revealed;             // Tracks whether a token has been revealed
-    mapping(address => bool) public approvedStrategies;   // Approved strategy contracts
+    mapping(uint256 => bool) public revealed; // Tracks whether a token has been revealed
+    mapping(address => bool) public approvedStrategies; // Approved strategy contracts
 
     // ---------- Modifiers ----------
     /**
@@ -47,10 +47,7 @@ contract SPNFT is ERC721, Ownable, ReentrancyGuard, ISPNFT, ERC721Holder {
      * @notice Initializes the SPNFT contract by setting the token name, symbol, and owner.
      * @param _owner The owner address.
      */
-    constructor(address _owner)
-        ERC721("SPNFT", "SPNFT")
-        Ownable(_owner)
-    {}
+    constructor(address _owner) ERC721("SPNFT", "SPNFT") Ownable(_owner) {}
 
     // ---------- Receive Function ----------
     /**
@@ -67,11 +64,7 @@ contract SPNFT is ERC721, Ownable, ReentrancyGuard, ISPNFT, ERC721Holder {
      * @param _approved True to approve, false to revoke.
      * @param _setAsActive True to set this strategy as active.
      */
-    function configureStrategy(
-        address _strategy,
-        bool _approved,
-        bool _setAsActive
-    ) external override onlyOwner {
+    function configureStrategy(address _strategy, bool _approved, bool _setAsActive) external override onlyOwner {
         if (_strategy == address(0)) revert CustomErrors.Errors.ZeroAddress();
 
         // Update strategy approval status.
@@ -102,8 +95,9 @@ contract SPNFT is ERC721, Ownable, ReentrancyGuard, ISPNFT, ERC721Holder {
      */
     function withdrawETH(address to, uint256 amount) external override onlyOwner {
         if (to == address(0)) revert CustomErrors.Errors.ZeroAddress();
-        if (amount > address(this).balance)
+        if (amount > address(this).balance) {
             revert CustomErrors.Errors.InsufficientFunds(amount, address(this).balance);
+        }
 
         payable(to).sendValue(amount);
         emit Events.ETHWithdrawn(to, amount);
@@ -113,13 +107,16 @@ contract SPNFT is ERC721, Ownable, ReentrancyGuard, ISPNFT, ERC721Holder {
      * @notice Mint a new NFT with unrevealed metadata.
      * @dev Requires exact payment equal to mintPrice.
      */
-    function mint() external override payable nonReentrant {
-        if (msg.value != mintPrice)
+    function mint() external payable override nonReentrant {
+        if (msg.value != mintPrice) {
             revert CustomErrors.Errors.InvalidPaymentAmount(mintPrice, msg.value);
+        }
 
         uint256 tokenId = nextTokenId;
         // Use unchecked arithmetic for gas optimization (safe as tokenId increments are predictable).
-        unchecked { nextTokenId = tokenId + 1; }
+        unchecked {
+            nextTokenId = tokenId + 1;
+        }
 
         _safeMint(msg.sender, tokenId);
         emit Events.TokenMinted(msg.sender, tokenId);
@@ -130,11 +127,7 @@ contract SPNFT is ERC721, Ownable, ReentrancyGuard, ISPNFT, ERC721Holder {
      * @param tokenId The token ID to reveal.
      * @param metadata The new revealed metadata.
      */
-    function setTokenRevealed(uint256 tokenId, string memory metadata)
-        external
-        override
-        onlyApprovedStrategy
-    {
+    function setTokenRevealed(uint256 tokenId, string memory metadata) external override onlyApprovedStrategy {
         if (!_exists(tokenId)) revert CustomErrors.Errors.TokenNonexistent(tokenId);
 
         _revealedMetadata[tokenId] = metadata;
@@ -147,12 +140,7 @@ contract SPNFT is ERC721, Ownable, ReentrancyGuard, ISPNFT, ERC721Holder {
      * @param tokenId The token ID to burn.
      * @return The address of the token owner prior to burning.
      */
-    function burn(uint256 tokenId)
-        external
-        override
-        onlyApprovedStrategy
-        returns (address)
-    {
+    function burn(uint256 tokenId) external override onlyApprovedStrategy returns (address) {
         address tokenOwner = ownerOf(tokenId);
         _burn(tokenId);
         emit Events.TokenBurned(tokenOwner, tokenId);
@@ -174,12 +162,7 @@ contract SPNFT is ERC721, Ownable, ReentrancyGuard, ISPNFT, ERC721Holder {
      * @param tokenId The token ID.
      * @return The token's metadata URI.
      */
-    function tokenURI(uint256 tokenId)
-        public
-        view
-        override(ERC721, ISPNFT)
-        returns (string memory)
-    {
+    function tokenURI(uint256 tokenId) public view override(ERC721, ISPNFT) returns (string memory) {
         if (!_exists(tokenId)) revert CustomErrors.Errors.TokenNonexistent(tokenId);
         if (revealed[tokenId]) {
             return _revealedMetadata[tokenId];

@@ -28,9 +28,10 @@ struct RevealRequest {
  * @dev Enum to track the reveal status of an NFT.
  */
 enum RevealStatus {
-    NotRequested,   // Reveal never requested
+    NotRequested, // Reveal never requested
     RequestPending, // Reveal requested but not yet completed
-    Revealed        // Reveal completed
+    Revealed // Reveal completed
+
 }
 
 // ---------- Contract Declaration ----------
@@ -50,15 +51,15 @@ contract RevealModule is VRFConsumerBaseV2Plus, IRevealModule {
     uint32 public immutable numWords;
 
     // Regular state variables
-    TimelockController public timelock;      // Timelock controller for strategy updates
-    IRevealStrategy public revealStrategy;   // Current reveal strategy
-    uint16 public requestConfirmations;      // VRF request confirmations (modifiable)
-    uint32 public callbackGasLimit;          // Gas limit for VRF callback (modifiable)
+    TimelockController public timelock; // Timelock controller for strategy updates
+    IRevealStrategy public revealStrategy; // Current reveal strategy
+    uint16 public requestConfirmations; // VRF request confirmations (modifiable)
+    uint32 public callbackGasLimit; // Gas limit for VRF callback (modifiable)
 
     // Mappings (placed after other state variables)
-    mapping(uint256 => RevealRequest) public revealRequests;  // Map requestId to reveal request details
-    mapping(address => bool) public approvedNFTContracts;     // Approved NFT contracts
-    mapping(bytes32 => RevealStatus) public revealStatus;       // Reveal status per NFT (keyed by hash)
+    mapping(uint256 => RevealRequest) public revealRequests; // Map requestId to reveal request details
+    mapping(address => bool) public approvedNFTContracts; // Approved NFT contracts
+    mapping(bytes32 => RevealStatus) public revealStatus; // Reveal status per NFT (keyed by hash)
 
     // ---------- Constructor ----------
     /**
@@ -83,21 +84,14 @@ contract RevealModule is VRFConsumerBaseV2Plus, IRevealModule {
         uint32 _numWords,
         uint256 _timelockDelay,
         address _owner
-    )
-        VRFConsumerBaseV2Plus(_vrfCoordinator)
-    {
+    ) VRFConsumerBaseV2Plus(_vrfCoordinator) {
         // Deploy and initialize timelock controller with owner as proposer/admin.
         address[] memory proposers = new address[](1);
         proposers[0] = _owner;
         address[] memory executors = new address[](1);
         executors[0] = address(0); // Zero address means anyone can execute
 
-        timelock = new TimelockController(
-            _timelockDelay,
-            proposers,
-            executors,
-            _owner
-        );
+        timelock = new TimelockController(_timelockDelay, proposers, executors, _owner);
 
         // Set initial reveal strategy and VRF parameters
         revealStrategy = IRevealStrategy(_strategy);
@@ -109,7 +103,7 @@ contract RevealModule is VRFConsumerBaseV2Plus, IRevealModule {
     }
 
     // ---------- External Functions (Non-View) ----------
-    
+
     /**
      * @notice Schedule a strategy update using the timelock controller.
      * @param newStrategy The address of the new strategy contract.
@@ -122,20 +116,10 @@ contract RevealModule is VRFConsumerBaseV2Plus, IRevealModule {
         uint256 delay = timelock.getMinDelay();
 
         // Encode function call for strategy update.
-        bytes memory data = abi.encodeWithSelector(
-            this.executeStrategyUpdate.selector,
-            newStrategy
-        );
+        bytes memory data = abi.encodeWithSelector(this.executeStrategyUpdate.selector, newStrategy);
 
         // Schedule the update operation via timelock.
-        timelock.schedule(
-            address(this),
-            0,
-            data,
-            bytes32(0),
-            STRATEGY_UPDATE_OPERATION,
-            delay
-        );
+        timelock.schedule(address(this), 0, data, bytes32(0), STRATEGY_UPDATE_OPERATION, delay);
 
         emit Events.StrategyUpdateScheduled(newStrategy, block.timestamp + delay);
     }
@@ -157,21 +141,10 @@ contract RevealModule is VRFConsumerBaseV2Plus, IRevealModule {
      * @param newStrategy The strategy address used during scheduling.
      */
     function cancelStrategyUpdate(address newStrategy) external override onlyOwner {
-        bytes memory data = abi.encodeWithSelector(
-            this.executeStrategyUpdate.selector,
-            newStrategy
-        );
+        bytes memory data = abi.encodeWithSelector(this.executeStrategyUpdate.selector, newStrategy);
 
         // Cancel the scheduled operation by computing its operation ID.
-        timelock.cancel(
-            bytes32(keccak256(abi.encode(
-                address(this),
-                0,
-                data,
-                bytes32(0),
-                STRATEGY_UPDATE_OPERATION
-            )))
-        );
+        timelock.cancel(bytes32(keccak256(abi.encode(address(this), 0, data, bytes32(0), STRATEGY_UPDATE_OPERATION))));
 
         emit Events.StrategyUpdateCancelled(newStrategy);
     }
@@ -207,9 +180,7 @@ contract RevealModule is VRFConsumerBaseV2Plus, IRevealModule {
                 requestConfirmations: requestConfirmations,
                 callbackGasLimit: callbackGasLimit,
                 numWords: numWords,
-                extraArgs: VRFV2PlusClient._argsToBytes(
-                    VRFV2PlusClient.ExtraArgsV1({ nativePayment: true })
-                )
+                extraArgs: VRFV2PlusClient._argsToBytes(VRFV2PlusClient.ExtraArgsV1({nativePayment: true}))
             })
         );
 
@@ -244,7 +215,7 @@ contract RevealModule is VRFConsumerBaseV2Plus, IRevealModule {
     }
 
     // ---------- External View Functions ----------
-    
+
     /**
      * @notice Get the reveal status for a specific NFT.
      * @param nftContract The NFT contract address.
@@ -274,21 +245,18 @@ contract RevealModule is VRFConsumerBaseV2Plus, IRevealModule {
     }
 
     // ---------- Internal Functions (Non-View) ----------
-    
+
     /**
      * @notice Fulfill randomness request from Chainlink VRF.
      * @dev Called internally by VRFConsumerBaseV2Plus.
      * @param requestId The ID of the randomness request.
      * @param randomWords Array containing the random numbers.
      */
-    function fulfillRandomWords(
-        uint256 requestId,
-        uint256[] calldata randomWords
-    ) internal override {
+    function fulfillRandomWords(uint256 requestId, uint256[] calldata randomWords) internal override {
         RevealRequest memory request = revealRequests[requestId];
         bool success = revealStrategy.reveal(payable(request.nftContract), uint256(request.tokenId), randomWords[0]);
         bytes32 nftKey = _getNFTKey(request.nftContract, uint256(request.tokenId));
-        
+
         if (!success) {
             // If reveal failed, reset status to allow reattempt and clean storage.
             revealStatus[nftKey] = RevealStatus.NotRequested;
@@ -296,7 +264,7 @@ contract RevealModule is VRFConsumerBaseV2Plus, IRevealModule {
             delete revealRequests[requestId];
             return;
         }
-        
+
         // Mark NFT as revealed and clean up storage.
         revealStatus[nftKey] = RevealStatus.Revealed;
         emit Events.RevealSuccessful(request.nftContract, request.tokenId, randomWords[0]);
@@ -312,31 +280,31 @@ contract RevealModule is VRFConsumerBaseV2Plus, IRevealModule {
      * @param tokenId The token ID.
      * @dev Performs checks on zero address, ownership, approval, and current reveal status.
      */
-    function _validateRevealRequest(
-        bytes32 nftKey,
-        address nftContract,
-        uint256 tokenId
-    ) internal view {
+    function _validateRevealRequest(bytes32 nftKey, address nftContract, uint256 tokenId) internal view {
         if (nftContract == address(0)) revert CustomErrors.Errors.ZeroAddress();
 
         // Ensure the caller is the token owner.
-        if (IERC721(nftContract).ownerOf(tokenId) != msg.sender)
+        if (IERC721(nftContract).ownerOf(tokenId) != msg.sender) {
             revert CustomErrors.Errors.NotTokenOwner(msg.sender, tokenId);
+        }
 
         // Verify that the NFT contract is approved.
-        if (!approvedNFTContracts[nftContract])
+        if (!approvedNFTContracts[nftContract]) {
             revert CustomErrors.Errors.ContractNotApproved(nftContract);
+        }
 
         // Ensure a reveal strategy is set.
-        if (address(revealStrategy) == address(0))
+        if (address(revealStrategy) == address(0)) {
             revert CustomErrors.Errors.StrategyNotSet(0);
+        }
 
         // Check that the NFT has not been already requested or revealed.
         if (revealStatus[nftKey] != RevealStatus.NotRequested) {
-            if (revealStatus[nftKey] == RevealStatus.Revealed)
+            if (revealStatus[nftKey] == RevealStatus.Revealed) {
                 revert CustomErrors.Errors.AlreadyRevealed(tokenId);
-            else
+            } else {
                 revert CustomErrors.Errors.RevealAlreadyPending(tokenId);
+            }
         }
     }
 

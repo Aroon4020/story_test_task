@@ -14,10 +14,10 @@ library Events {
     event TokenBurned(address indexed owner, uint256 indexed tokenId);
     event ETHWithdrawn(address indexed to, uint256 amount);
     event ApprovedStrategySet(address indexed strategyAddress);
-    
+
     // RevealedNFT events
     event RevealedNFTMinted(address indexed to, uint256 indexed tokenId);
-    
+
     // RevealModule events
     event RevealStrategySet(uint256 indexed strategyId, address indexed strategyAddress);
     event TokenStrategySet(uint256 indexed tokenId, uint256 indexed strategyId);
@@ -37,8 +37,8 @@ library Events {
     event RevealModuleSetForStrategy(address indexed moduleAddress);
     event TokenRevealExecuted(uint256 indexed tokenId, uint256 randomness);
     event TokenBurnedAndMinted(uint256 indexed tokenId, address indexed owner, string metadata);
-    
-    // Staking events 
+
+    // Staking events
     event Staked(address indexed owner, uint256 indexed tokenId, uint256 timestamp);
     event Unstaked(address indexed owner, uint256 indexed tokenId, uint256 timestamp);
     event RewardClaimed(address indexed owner, uint256 indexed tokenId, uint256 amount);

@@ -25,7 +25,7 @@ library Errors {
     error RevealFailed(uint256 tokenId);
     error RevealStrategyInvalid(address strategy);
     error ContractNotApproved(address nftContract);
-    error RevealAlreadyPending(uint256 tokenId);  // New error
+    error RevealAlreadyPending(uint256 tokenId); // New error
 
     // Strategy errors
     error RevealModuleAlreadySet();

@@ -42,7 +42,7 @@ The contract relies on:
 The contract is structured as follows:
 - **State Variables**: Tracks staked NFTs, rewards, and user balances.
 - **Core Functions**: Handles staking, unstaking, and reward calculations.
-- **Administrative Functions**: Allows the owner to set APY, reward token, and approved NFTs.
+- **Administrative Function**: Allows the owner to set approved NFTs.
 
 ---
 
@@ -93,8 +93,6 @@ rewards = (stakingDuration * apy * tokenDecimals) / (365 * 24 * 60 * 60)
 ---
 
 ## Administrative Functions
-- **setAPY**: Allows the owner to update the APY.
-- **setRewardToken**: Sets the ERC20 token used for rewards.
 - **approveNFT**: Adds an NFT contract to the approved list.
 
 ---
