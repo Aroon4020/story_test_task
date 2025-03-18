@@ -5,6 +5,7 @@ import {BaseTest} from "./BaseTest.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {RevealModule} from "../src/RevealModule.sol";
 import {SPNFT} from "../src/SPNFT.sol";
+import {Errors} from "../src/utils/Errors.sol";
 
 contract RevealModuleTest is BaseTest {
 
@@ -411,5 +412,33 @@ contract RevealModuleTest is BaseTest {
         vm.prank(alice);
         vm.expectRevert();
         revealModule.reveal(address(0), tokenId);
+    }
+
+    function testUpdateRequestConfirmations() public {
+        uint16 initialConfirmations = revealModule.requestConfirmations();
+        uint16 newConfirmations = 8; // Different value
+        
+        vm.prank(deployer);
+        revealModule.updateRequestConfirmations(newConfirmations);
+        
+        // Verify the update took effect
+        assertEq(revealModule.requestConfirmations(), newConfirmations, "Request confirmations should be updated");
+        
+        // Verify reveal still works with new confirmation count
+        uint256 tokenId = mintNFT(alice);
+        vm.prank(alice);
+        revealModule.reveal(address(nft), tokenId);
+        
+        uint256 requestId = 1;
+        vm.prank(address(vrfCoordinator));
+        vrfCoordinator.fulfillRandomness(requestId, address(revealModule));
+        
+        assertTrue(nft.revealed(tokenId), "Token should be revealed after updating confirmations");
+    }
+    
+    function testScheduleStrategyUpdate_RevertsForZeroAddress() public {
+        vm.prank(deployer);
+        vm.expectRevert(abi.encodeWithSelector(Errors.ZeroAddress.selector));
+        revealModule.scheduleStrategyUpdate(address(0));
     }
 }

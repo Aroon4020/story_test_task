@@ -243,15 +243,6 @@ contract RevealModule is VRFConsumerBaseV2Plus, IRevealModule {
         emit Events.RequestConfirmationsUpdated(_requestConfirmations);
     }
 
-    /**
-     * @notice Update the timelock delay.
-     * @param _timelockDelay New delay value.
-     */
-    function updateTimelockDelay(uint256 _timelockDelay) external onlyOwner {
-        timelock.updateDelay(_timelockDelay);
-        emit Events.TimelockDelayUpdated(_timelockDelay);
-    }
-
     // ---------- External View Functions ----------
     
     /**

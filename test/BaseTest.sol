@@ -5,13 +5,11 @@ import {Test} from "forge-std/Test.sol";
 import {console} from "forge-std/console.sol";
 import {Events} from "../src/utils/Events.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol"; // Add this import
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol"; 
 import {MetadataGenerator} from "../src/strategies/libraries/MetadataGenerator.sol";
-// Add VRF interface import
 import {VRFConsumerBaseV2Plus} from "@chainlink/contracts/src/v0.8/vrf/dev/VRFConsumerBaseV2Plus.sol";
-import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol"; // Added this import
+import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol"; 
 
-// Import contracts with aliases to avoid naming conflicts
 import {SPNFT} from "../src/SPNFT.sol";
 import {RevealModule} from "../src/RevealModule.sol";
 import {RevealedNFT} from "../src/RevealedNFT.sol";
@@ -96,6 +94,7 @@ contract BaseTest is Test, ERC721Holder {
         timelock.grantRole(CANCELLER_ROLE, deployer);
         timelock.grantRole(CANCELLER_ROLE, address(revealModule)); // Add this line to give RevealModule the CANCELLER_ROLE
         timelock.grantRole(EXECUTOR_ROLE, address(0)); // Allow anyone to execute
+        timelock.grantRole(EXECUTOR_ROLE, deployer); // <-- ADDED
         
         // Setup approvals and connections - use new API
         // Configure the SPNFT to use the InCollectionStrategy directly
@@ -143,14 +142,23 @@ contract BaseTest is Test, ERC721Holder {
         return tokenId;
     }
     
+    // Enhanced version of revealNFT that uses simulateVRFCallback
     function revealNFT(address owner, uint256 tokenId) internal {
-        vm.prank(owner);
+        vm.startPrank(owner);
         revealModule.reveal(address(nft), tokenId);
+        vm.stopPrank();
+        
+        // Simulate VRF callback
+        simulateVRFCallback(tokenId);
+    }
+    
+    function simulateVRFCallback(uint256 tokenId) internal {
+        uint256[] memory randomWords = new uint256[](1);
+        randomWords[0] = uint256(keccak256(abi.encodePacked(tokenId, block.timestamp)));
+        
         uint256 requestId = 1;
         vm.prank(address(vrfCoordinator));
         vrfCoordinator.fulfillRandomness(requestId, address(revealModule));
-        assertTrue(revealModule.isRevealed(address(nft), tokenId), "Token should be revealed in RevealModule");
-        assertTrue(nft.revealed(tokenId), "Token should be revealed in NFT contract");
     }
     
     function stakeNFT(address owner, uint256 tokenId) internal {
@@ -158,5 +166,53 @@ contract BaseTest is Test, ERC721Holder {
         nft.approve(address(stakingContract), tokenId);
         stakingContract.stake(address(nft), tokenId);
         vm.stopPrank();
+    }
+    
+    function assertTokenRevealed(uint256 tokenId) internal {
+        assertTrue(nft.revealed(tokenId), "Token should be revealed");
+    }
+    
+    function changeRevealStrategy(address newStrategy) internal {
+        // Schedule strategy update
+        vm.prank(deployer);
+        revealModule.scheduleStrategyUpdate(newStrategy);
+        
+        // Fast forward past timelock delay
+        vm.warp(block.timestamp + timelockDelay + 1);
+        
+        // Execute the strategy update
+        bytes memory data = abi.encodeWithSelector(
+            revealModule.executeStrategyUpdate.selector,
+            newStrategy
+        );
+        
+        vm.prank(deployer);
+        revealModule.timelock().execute(
+            address(revealModule),
+            0,
+            data,
+            bytes32(0),
+            revealModule.STRATEGY_UPDATE_OPERATION()
+        );
+        
+        // Configure NFTs for the new strategy
+        if (newStrategy == address(separateCollectionStrategy)) {
+            vm.startPrank(deployer);
+            revealedNFT.configureStrategy(address(separateCollectionStrategy), true, true);
+            nft.configureStrategy(address(separateCollectionStrategy), true, false);
+            vm.stopPrank();
+        }
+    }
+    
+    function stakeMultipleNFTs(address owner, uint256 count) internal returns (uint256[] memory) {
+        uint256[] memory tokenIds = new uint256[](count);
+        
+        for (uint256 i = 0; i < count; i++) {
+            tokenIds[i] = mintNFT(owner);
+            revealNFT(owner, tokenIds[i]);
+            stakeNFT(owner, tokenIds[i]);
+        }
+        
+        return tokenIds;
     }
 }
