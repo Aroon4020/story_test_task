@@ -134,13 +134,15 @@ sequenceDiagram
     participant Owner as NFT Owner
     participant RevealModule as RevealModule
     participant ChainlinkVRF as Chainlink VRF
+    participant InCollectionStrategy as InCollectionRevealStrategy
     participant SPNFT as SPNFT
 
     Owner ->> RevealModule: reveal(nftContract, tokenId)
     RevealModule ->> RevealModule: Validate Request
     RevealModule ->> ChainlinkVRF: Request Randomness
     ChainlinkVRF ->> RevealModule: fulfillRandomWords(requestId, randomWords)
-    RevealModule ->> SPNFT: setTokenRevealed(tokenId, metadata)
+    RevealModule ->> InCollectionStrategy: reveal(nftContract, tokenId, randomWords[0])
+    InCollectionStrategy ->> SPNFT: setTokenRevealed(tokenId, metadata)
     RevealModule ->> Owner: Emit RevealSuccessful Event
 ```
 
@@ -152,6 +154,7 @@ sequenceDiagram
     participant Owner as NFT Owner
     participant RevealModule as RevealModule
     participant ChainlinkVRF as Chainlink VRF
+    participant SeparateCollectionStrategy as SeparateCollectionRevealStrategy
     participant SPNFT as SPNFT
     participant RevealedNFT as RevealedNFT
 
@@ -159,8 +162,9 @@ sequenceDiagram
     RevealModule ->> RevealModule: Validate Request
     RevealModule ->> ChainlinkVRF: Request Randomness
     ChainlinkVRF ->> RevealModule: fulfillRandomWords(requestId, randomWords)
-    RevealModule ->> SPNFT: burn(tokenId)
-    RevealModule ->> RevealedNFT: mint(tokenOwner, tokenId, metadata)
+    RevealModule ->> SeparateCollectionStrategy: reveal(nftContract, tokenId, randomWords[0])
+    SeparateCollectionStrategy ->> SPNFT: burn(tokenId)
+    SeparateCollectionStrategy ->> RevealedNFT: mint(tokenOwner, tokenId, metadata)
     RevealModule ->> Owner: Emit RevealSuccessful Event
 ```
 
