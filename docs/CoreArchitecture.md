@@ -39,6 +39,14 @@ The reveal process is designed to securely and efficiently reveal NFTs using ran
 5. **Timelock Controller**:
    - Secures updates to the reveal strategy.
 
+### Flexibility and Extensibility
+The architecture is designed to be flexible and extensible, allowing for the seamless integration of new reveal strategies. By adhering to the `IRevealStrategy` interface, developers can implement custom strategies tailored to specific requirements. The `RevealModule` can dynamically switch between strategies using the timelock-protected `scheduleStrategyUpdate` and `executeStrategyUpdate` functions, ensuring governance and security during updates.
+
+This flexibility ensures that the system can evolve to support new use cases, such as:
+- Adding strategies for multi-chain NFT reveals.
+- Supporting advanced metadata generation techniques.
+- Integrating with external systems for enhanced functionality.
+
 ---
 
 ## Flow of Calls
